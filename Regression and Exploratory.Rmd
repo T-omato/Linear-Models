@@ -1,0 +1,152 @@
+---
+title: "Simple Regression & Exploratory Analysis"
+author: "Pablo Rodriguez"
+date: "1/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Restoring cadmium contaminated soils using *Eremochloa ophiuroideas*
+
+It was of interest to study the detoxifying capacity of *Eremochloa ophiuroides* in Cd contaminated soils.
+
+### Experimental Design:
+
+20 pots of soil with this grass were assigned 5 different dosis of Cd (60, 120, 180, 240 and 300 mg Cd per kg)
+
+Each dose of Cd was assigned 4 pots.
+
+After 36 days in the greenhouse accumalated Cd was measured in the plant as: Cd per kg of dried plant weight.
+
+Model Description:
+
+A linear relationship is suspected. The Response Variable (RV) is accumalated Cd. The Explanatory Variable (EV) which is Cd dosage is the deterministic part of the analysis. All statistic models have an error (E) asociated with them and is called the stocastic part of the analysis and it contemplates the: 1) inherent aleatory process 2) The effect of other EV not included in the model and 3) measuring error. This error is assigned a probability distribution and in this case it is assigned a normal distribution since the RV is a continuos variable.
+
+### Firstly
+I will view the data and observe the mean, median and minimums and maximums. 
+```{r}
+Dosage = c(
+  60, 60, 60, 60,
+  120, 120, 120, 120,
+  180, 180, 180, 180,
+  240, 240, 240, 240,
+  300, 300, 300, 300)
+
+CdStalk = c(
+  23.2, 16.2, 52.7, 29.1,
+  52.5, 45.7, 52.9, 84.9,
+  123.5, 106.9, 123.9, 145.7,
+  166.8, 165.9, 184.3, 157,
+  208.4, 189.9, 217.7, 193.2
+)
+
+CdRoot = c(
+  104.6, 156, 114.9, 176.9,
+  258.4, 340.9, 205.3, 366.8,
+  457.5, 540.8, 472.5, 294.3, 
+  612.7, 789.6, 622.9, 562.6, 
+  988.9, 1067.1, 959.6, 962.9
+)
+Cd = data.frame(Dosage, CdStalk, CdRoot)
+Cd
+summary(Cd)
+```
+
+### Visualizing the data
+
+In order to observe any relationships between my Response Variable (RV) (Cd in grass stalk) and my Explanatory Variabel (EV) I will graph the data and I
+will be using ggplot:
+
+```{r pressure, echo=FALSE}
+library(ggplot2)
+gCd = ggplot(Cd, aes(x = Cd$Dosage, y = Cd$CdStalk))
+gCd1 = gCd + geom_point() + labs(x = "Cd Dosage (mg/soil Kg)" , y = "Cd in Stalk (mg/ g Dry Weight)", title = "Absorbtion of Cd by the stalk of E.ophiuroides")
+gCd1
+```
+
+I can easily observe a linear relationship. For which I will propose a mathematical model that will allow me to predict:
+
+Y$_{i}$ = $\hat{\beta}$$_{0}$ + $\hat{\beta}$$_{1}$*$X_{i}$ + $\varepsilon$$_{i}$
+
+Where Y is the RV
+
+$\hat{\beta}$$_{0}$ is the intercept of the model
+
+$\hat{\beta}$$_{1}$ is the slope
+
+$X_{n}$ is the EV
+
+and $\varepsilon$$_{i}$ is the error associated with the model. 
+
+The mathematical model is a simple Linear Regression and this can be stated in R as follows:
+
+model1 = lm(Cd\$CdStalk ~ Cd\$Dosage, data = Cd)
+```{r}
+model1 = lm(Cd$CdStalk ~ Cd$Dosage, data = Cd)
+summary(model1)
+```
+
+The summary of the model informs the values of the estimators but these are meaningles if the assumptions of the model are not corroborated
+
+### Assumptions:
+
+#### X is measured without error, Values are determined by the person.
+
+#### Independent Observations, meaning the value of one observation is not influenced by another observation. In other words there shouldn't be correlation between values.
+
+In order to check the independence of the observations it is necessary to estimate the error of the model:
+
+```{r echo = FALSE}
+model1= lm(Cd$CdStalk ~ Cd$Dosage, data = Cd)
+error = resid(model1) ##residues
+standard_error = rstandard(model1) ##standard residues
+predicted  = predict(model1) #predicted residues
+res = cbind(Cd$Dosage, Cd$CdStalk, Cd$CdRoot, error, round(standard_error,2), predicted)
+colnames(res) = c("Dosage", "CdStalk", "CdRoots", "Error", "Stan_Error", "Predicted")
+res = as.data.frame(res)
+```
+
+```{r echo = TRUE}
+par(mfrow = c(1, 2))
+plot(predicted, standard_error, xlab="Predicted", ylab="Standarized Residues",main="Dispersion graph" )
+abline(0,0)
+qqnorm(error)
+qqline(error)
+```
+
+In statistics Homoscedasticity is the assumption that the error of the data is distributed normally. I will conduct Shapiro's Test to test this. To test the Homogeinity of Variance I will conduct a Levene's Test. Homogeneity of Variance is an assumption that **cannot** not be met, unlike Homoscedasticity that cannot be met but still inform correct statistical values. 
+```{r echo = FALSE}
+library(car)
+CdTotal = Cd$CdStalk + CdRoot
+```
+```{r echo = TRUE}
+shapiro.test(error)
+
+leveneTest(CdTotal,Cd$Dosage)
+
+```
+
+Since p-value > 0.5 then I do not have to reject the null hypothesisis and the error values also seem to respond to a normal distribution therefore I can conclude that the data of my model is Homoscedastic variance is homogeneously distributed and I can now express the graph and its estimator's values without the fear of possibly informing incorrectly calculated numbers.
+
+```{r echo = TRUE}
+gCd1 + geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  geom_segment(aes(xend = Cd$Dosage, yend = predicted)) + ##residues
+  geom_point(aes(y = predicted), shape = 1)  ##adds predicted
+#Determination coefficient
+summary(model1)$r.squared
+```
+
+0.947, meaning that almost 95% of the variance of the model is explained by this explanatory variable
+
+```{r}
+summary(model1)
+```
+
+### Finally, as informed by the summary function in R we can conclude the following from the data and the experiment performed:
+
+#### Conclusiones
+
+When this grass is not added to the pots, after 36 days of applying this method, the soil in the pots will diminish 19.03 mg per soil kg. Whereas if *E.ophiuroideas* is planted in the pots, after 36 days in the greenhouse, the amount of Cd removed from the soil 0.76mg per soil kg* Unit of dry plant weight. So, for example, if we extract 10g of dry grass from a pot with cadmium after 36 days in the greenhouse, we will expect to measure 7.6mg of cadmium in the plant dry mass. 
