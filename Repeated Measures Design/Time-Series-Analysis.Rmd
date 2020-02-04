@@ -1,0 +1,346 @@
+---
+title: "Time Series Analysis"
+author: "Pablo Rodriguez"
+date: "1/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+72 patients with asma were given either a placebo (drugP) drugA or drugB.
+
+The **Forced exhalation volume** or FEV was measured before drug administration (Basal) and once every hour up to 8 hours.
+
+The Experimental Unit: Each Patient.
+Response Variable: FEV (Continuos variable, Normal distribution)
+Explanatory Variables: Each Patient, Drug & Time.
+Patient can be considered as a aleatory variable or can be modelled into a covariance matrix resulting either in a conditional or marginal model.
+
+The Data:
+```{r asma, echo=TRUE}
+# the 9 intervals of 1:72 is because each of the 72 patients were measured once every hour after drug administration and once before. Each interval should have the same numbers to indicate the same person.
+
+patient = c(
+  (1:72),(1:72),(1:72),(1:72),(1:72),(1:72),(1:72),(1:72),(1:72)
+)
+
+drugA = "A"
+drugB = "B"
+drugP = "P"
+
+# REPLICATE 24, since it is a balanced design, each drug was administered to 24 inidividuals. 
+drug = c(
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP),
+  replicate(24, drugA), replicate(24, drugB), replicate(24, drugP)
+)
+
+time = c(
+  replicate(72, "Basal"), replicate(72, "1hs"), replicate(72, "2hs"),
+  replicate(72, "3hs"), replicate(72, "4hs"), replicate(72, "5hs"),
+  replicate(72, "6hs"), replicate(72, "7hs"), replicate(72, "8hs")
+)
+
+#FEV that was measured for each patient at each hour
+fev = c(
+  2.46, 3.5,  1.96,  3.44,  2.8,  2.36,  1.77,  2.64,  2.3,  2.27,  2.44,  2.04,
+  2.77,  2.96,  3.11,  1.47,  2.73,  3.25,  2.73,  3.3,  2.85,  2.72,  3.68,  2.49,
+  2.3,  2.91,  2.08,  3.02,  3.26,  2.29,  1.96,  2.7,  2.5,  2.35,  2.34,  2.2,
+  2.78,  3.43,  3.07,  1.21,  2.6,  2.61,  2.48,  3.73,  2.54,  2.83,  3.47,  2.79,
+  2.14,  3.37,  1.88,  3.1,  2.91,  2.29,  2.2,  2.7,  2.25,  2.48,  2.12,  2.37,
+  2.73,  3.15,  2.52,  1.48,  2.52,  2.9,  2.83,  3.5,  2.86,  2.42,  3.66,  2.88,
+  2.68,  3.95,  2.28,  4.08,  4.09,  3.79,  3.82,  3.67,  4.12,  2.77,  3.77,  2,
+  3.36,  4.31,  3.88,  1.97,  2.91,  3.59,  2.88,  4.04,  3.38,  4.49,  4.17,  3.73,
+  3.41,  3.92,  2.52,  4.43,  4.55,  4.25,  3,  4.06,  4.37,  2.83,  4.06,  2.82,  3.18,
+  4.39,  3.9,  2.31,  3.19,  3.54,  2.99,  4.37,  3.26,  4.72,  4.27,  4.1, 2.36,  3.03,
+  1.99,  3.24,  3.35,  3.04,  2.46,  2.85,  3.45,  2.56,  2.19,  2.14,  2.57,  2.9,  3.02,
+  1.35,  2.61,  2.91,  2.78,  3.81,  3.06,  2.87,  3.98,  3.04,  2.76,  3.65,  2.34,  3.87,
+  3.9,  3.97,  3.44,  3.47,  3.71,  2.77,  3.73,  1.91,  3.42,  4.02,  3.92,  1.9,  2.99,
+  3.54,  3.06,  3.94,  3.42,  4.35,  4.3,  3.51,  3.48,  4.02,  2.44,  4.3,  4.58,  4.37,
+  2.8,  3.98,  4.06,  2.79,  3.68,  1.9,  3.13,  4.63,  3.98,  2.19,  3.18,  3.45,  3.02,
+  4.2,  3.39,  4.97,  4.5,  3.85,  2.36,  3.02,  1.62,  3.37,  3.92,  3.28,  3.22,  2.81,
+  3.48,  2.52,  2.44,  1.92,  3.08,  2.8,  3.21,  1.15,  2.59,  2.89,  2.89,  3.77,  2.95,
+  3.08,  3.77,  3,  2.5,  2.93,  2.29,  3.79,  3.54,  3.78,  3.46,  3.19,  3.57,  2.75,
+  3.67,  1.88,  3.28,  3.38,  3.71,  1.45,  2.87,  3.17,  2.75,  3.84,  3.28,  4.38,  4.16,
+  3.16,  3.41,  4.04,  2.27,  4.08,  4.44,  4.1,  2.59,  4.06,  3.68,  2.82,  3.59,  2.57,
+  3.11,  4.19,  4.09,  2.21,  3.15,  3.25,  3.02,  4.17,  3.27,  4.99,  4.34,  4.27,  2.28,
+  3.19,  1.65,  3.54,  3.69,  3.17,  2.65,  2.96,  3.8,  2.67,  2.41,  1.75,  2.62,  3.17,
+  3.17,  1.24,  2.77,  3.01,  2.77,  3.78,  3.07,  3.02,  3.65,  3.24,  2.3,  2.53,  2.43,
+  3.3,  3.35,  3.69,  3.02,  2.19,  3.49,  2.75,  3.56,  2.09,  3.3,  3.31,  3.59,  1.45,
+  2.88,  2.92,  2.71,  3.99,  2.94,  4.36,  4.07,  3.26,  3.49,  3.64,  2.23,  4.01,  4.04,
+  4.2,  2.42,  3.93,  3.64,  2.79,  3.27,  2.3,  2.97,  4,  4.03,  2.09,  3.14,  3.01,  2.94,
+  4.19,  3.2,  4.96,  4,  4.01,  2.35,  2.98,  1.68,  3.31,  3.97,  2.99,  3.02,  2.69,  3.6,
+  2.6,  2.55,  1.58,  2.91,  2.39,  3.13,  1.32,  2.73,  2.74,  2.77,  3.9,  3.1,  3.14,  3.81,
+  3.37,  2.14,  3.04,  2.06,  3.8,  3.15,  3.31,  2.98,  2.85,  3.64,  2.71,  3.59,  2.08,  3.31,
+  3.46,  3.57,  1.24,  2.84,  3.48,  2.83,  3.9,  2.96,  3.77,  3.87,  3.07,  3.33,  3.29,  2.01,
+  3.62,  4.33,  3.84,  1.61,  3.61,  3.17,  2.8,  2.6,  1.67,  3.06,  4.01,  4.07,  1.75,  3.08,
+  3.07,  2.69,  4.07,  3.32,  4.95,  4.11,  3.78,  2.31,  3.01,  1.65,  2.81,  3.94,  3.31,  2.25,
+  2.18,  2.83,  2.68,  2.93,  1.51,  2.71,  3.01,  3.38,  0.95,  2.7,  2.71,  2.69,  3.8,  2.67,
+  3.67,  3.77,  2.69,  2.4,  3.37,  2.18,  3.24,  3.23,  2.83,  3.1,  2.68,  3.38,  2.75,  3.35,
+  1.98,  2.99,  3.49,  3.48,  1.24,  2.67,  3.05,  2.58,  3.89,  3.12,  4.23,  3.87,  2.77,  3.2,
+  3.1,  2.26,  3.23,  3.87,  3.43,  1.83,  2.91,  3.37,  2.76,  2.72,  1.9,  3.27,  3.66,  3.56,
+  1.72,  2.96,  2.65,  2.66,  3.86,  3.09,  4.82,  3.93,  3.14,  2.62,  2.75,  1.85,  3.58,  3.63,
+  3.21,  1.5,  1.91,  3.17,  2.64,  3.08,  1.94,  2.39,  3.22,  3.25,  1.24,  2.72,  2.86,  2.65,
+  3.78,  2.68,  3.84,  3.89,  2.89,  2.33,  3.14,  2.28,  2.98,  3.46,  2.72,  2.79,  2.6,  2.28,
+  2.52,  3.32,  1.7,  3.01,  3.38,  3.42,  1.17,  2.69,  3.27,  2.68,  3.89,  2.98,  3.83,  3.85,
+  2.92,  3.07,  2.7,  2.34,  2.46,  3.75,  3.79,  1.21,  2.07,  3.2,  2.64,  2.22,  2.07,  3.24,
+  3.47,  3.83,  1.8,  2.97,  2.47,  2.68,  3.89,  3.25,  4.56,  3.68,  3.94,  2.12,  2.7,  1.96,
+  3.76,  2.92,  2.98,  2.37,  2.21,  3.22,  2.65,  3.11,  1.84,  2.42,  2.75,  3.29,  1.04,  2.71,
+  2.95,  2.84,  3.7,  2.94,  3.55,  3.63,  2.89,  2.2,  2.62,  2.29,  2.91,  3.27,  3,  2.88,  2.73,
+  3.72,  2.6,  3.18,  1.4,  3.08,  3.35,  3.63,  1.27,  2.77,  2.96,  2.42,  2.98,  2.99,  3.89,  3.82,
+  3,  3.15,  2.69,  2.44,  2.97,  3.81,  3.74,  1.5,  2.67,  3.25,  2.69,  2.68,  1.76,  3.33,  3.22,
+  3.75,  1.36,  2.85,  2.55,  2.7,  3.89,  3.15,  4.49,  3.77,  3.69,  2.42,  2.84,  1.3,  3.05,  3.31,
+  2.82,  1.94,  1.71,  3.13,  2.61,  3.06,  1.76,  2.73,  3.14,  3.35,  1.16,  2.75,  2.66,  2.8,  3.61,
+  2.89,  3.75,  3.74,  2.76
+)
+
+#dataframe for working with models:
+
+asma = data.frame(patient, drug, time, fev)
+
+asma$patient = as.factor(asma$patient)
+```
+```{r echo = TRUE, warning = FALSE, message = FALSE}
+#Libraries that will be used in this analysis:
+library(ggplot2)
+library(tidyr)
+library(GGally)
+library(doBy)
+library(nlme)
+library(emmeans)
+library(dplyr)
+library(ggpubr)
+
+```
+
+Firstly, I will visualize the data, to see if there are any patterns that may be of interest. 
+
+```{r Spaghetti plots, echo = TRUE}
+
+##Descriptive analysis
+spagPlot = ggplot(data = asma, aes(time, y = fev, group = patient))
+spagPlot + geom_line(aes(colour = patient)) +
+  facet_grid(. ~ drug) +
+  labs(y = "Forced Exhaled Volume (FEV) (litres)")
+```
+
+This first visualization of the data clearly shows that there is an interaction between the different time variables (Here I will state that each hour is a variable of its own) since all lines cross each other. If time number "X" didn't have an interactive effect with time number "Y" the lines should be paralel. This effect can be seen for each of the three drugs: A, B & P. 
+
+Next I will analyze the way the mean of the data for each group behaves:
+
+```{r tendency, echo = TRUE}
+#Here I re-order the variables, making Basal the first one to be plotted (since this is the way the data was measured)
+
+asma$time = factor(asma$time, levels = c("Basal", "1hs", "2hs", "3hs", "4hs", "5hs", "6hs", "7hs", "8hs"))
+
+tendencyPlot = ggplot(data = asma, aes(x = time, y = fev, colour = drug, group = drug))
+tendencyPlot + geom_smooth(se = TRUE) +
+  labs(y = "FEV (litres)")
+```
+
+Initally I can observe that at around 2-3hs time there seems to be an increase in FEV for patients who have taken drugs A & B and overall those who were given Placebo (P) did not show any increase in FEV. 
+
+Since the same individual was measured throughout this 8hs time period the data is correlated. If two variables are independent their **covariance** = 0, thought the reciprocal is not necessarily true. I will now study the **covariance matrix** of the time variables:
+
+```{r covariance, echo = TRUE}
+#I transform each time variable into an independent column
+asma_wide = spread(asma, time, fev)
+time_wide = asma_wide[3:11]
+##ggpairs to analyze the correlation between variables
+ggpairs(time_wide)
+```
+
+The plot shows association between time variables are positivly 
+
+```{r matrix covar, echo = TRUE}
+#covariance matrix
+round(cov(time_wide),2)
+```
+The diagonal of this matrix are values that correspond variance of each variable. If observations were homoscedastic then they would all be the same value, but this isn't the case for which we can already see that the case of homoscedasticity will have to be tested to see if it is significantly different. If the data were truly independent, and since the matrix is squared and symmetrical, we would see on either side of the diaganol the value of 0. This isn't the case either, which is another indicator for the lack of independency between variables.
+
+```{r matrix corr, echo = TRUE}
+#Heatmap
+ggcorr(time_wide, label = TRUE, label_size = 3,limits = FALSE, midpoint = NULL, label_round = 2) #heatmap
+```
+
+This heatmap facilitates the relationship of association between variables.Values in red are more closely correlated than those in blue. The pattern becomes clear: Hours closer to eachother have more similar values of FEV than those that are further apart. 
+
+For the case of this particular study I will include "basal" as an explanatory variable:
+
+```{r tidying dataframe}
+
+keycol = "time"
+valuecol = "fev"
+gathercols = c("1hs", "2hs", "3hs", "4hs", "5hs", "6hs", "7hs", "8hs")
+#another dataframe
+asma2 = gather_(asma_wide, keycol, valuecol, gathercols)
+
+```
+
+I will now propose 5 different models for explaining this set of data:
+
+Composed Symmetry:
+
+This model assumes that the variance of each time and covariance between times, which basically means that the assumption made is that for each pair of *repeated measurments* their correlation value will be the same. 
+```{r compSymm, echo = TRUE}
+model1 = gls(fev ~ drug*time + Basal, correlation = corCompSymm(form =~ 1|patient), asma2)
+getVarCov(model1)
+```
+
+Composed Symmetry. Variances are *not* the same:
+
+```{r compSymm varIdent, echo = TRUE}
+model2 = gls(fev ~ drug*time + Basal, correlation = corCompSymm(form =~ 1|patient), asma2, weights = varIdent(form = ~ 1 | time))
+getVarCov(model2)
+```
+
+Autoregressive correlation of the first order:
+
+This model supposes that correlation between times diminish exponentially regarding the distance between times. So for a given covaraince "P" at time 1 and time 2, the covariance between time 1 and time 3 would be x$^2$
+
+```{r corAR1, echo = TRUE}
+model3 = gls(fev ~ drug*time + Basal, correlation = corAR1(form =~ 1|patient), asma2)
+getVarCov(model3)
+```
+
+Autoregressive correlation of the first order. Variances are *not* the same:
+
+```{r corAr1 varIdent, echo = TRUE}
+model4 = gls(fev ~ drug*time + Basal, correlation = corCompSymm(form =~ 1|patient), asma2, weights = varIdent(form = ~ 1 | time))
+getVarCov(model4)
+```
+
+Finally the last model I propose for modelling the covariance matrix is the *"Unstructured Matrix"*:
+
+There are no restrictions on the matrix parameters. It is the least "parsimonious", each covariance must be estimated.
+
+```{r corSymm, echo = TRUE}
+model5 = gls(fev ~ drug*time + Basal, correlation = corSymm(form =~ 1|patient), asma2)
+getVarCov(model5)
+```
+
+I evaluate which model has a better AIC:
+```{r AIC, echo = TRUE}
+AIC(model1, model2, model3, model4, model5)
+```
+
+And I will also evaluate the models through ANOVA in order to compare degrees of freedom, another factor I will take into account in order to determine which is the best model for the data:
+
+```{r anova,echo=TRUE}
+anova(model1, model2, model3, model4, model5)
+```
+
+The anova shows interesting information about the models. For example, AIC is best for model 5 but BIC is best for model 3. BIC tends to be harsher on models with many estimated parameters. For the sake of parsimonia we would choose the model with the best BIC since so many parameters would have to be calculated in model 5. There is an interesting piece of information: *Log- Likelihood* which I will use to compare the fit. Since model 5 offers a fit of -70 (the highest value) compared to the other models & considering its superior AIC I believe this would be the best model to describe the data.
+
+I have to make sure that the residues comply with the assumptions of the model:
+
+$\Upsilon$$_{ijk}$ = $\mu$ + $\alpha$$_i$ + $\beta$$_j$ + $\alpha$*$\beta$$_{ij}$ + $\upsilon$$_k$ + $\varepsilon$$_{ijk}$
+
+Where:
+
+i = 1 to 3 (three treatments)
+
+j = 1 to 9 (nine different time intervals)
+
+k = 1 to 72 (72 experimental units)
+
+Assumptions:  ($\varepsilon$$_{ijk}$ $\sim$ N(0,$\sum$$_k$))
+
+$\Upsilon$$_{ijk}$ = Each individual's response at each time
+
+$\mu$ = population mean
+
+$\alpha$$_i$ = fixed effect of treatment **"i"** 
+
+$\beta$$_j$ = fixed effect of time **"j"**
+
+$\alpha$*$\beta$$_{ij}$ = effect of the interaction between time and treatment
+
+$\upsilon$$_k$ = Basal value
+
+$\varepsilon$$_{ijk}$ = aleatory error
+
+```{r residues, echo = TRUE, warning = FALSE}
+#Pearson residues
+e = resid(model5)
+#predicted
+pre = predict(model5)
+
+
+residues = data.frame(e,pre)
+
+rPlot1 = ggplot(data = residues, aes(x = pre, y = e)) +
+  labs(x = "Predicted", y="Pearson residues") +
+  geom_abline(slope = 0, intercept = 0) +
+  geom_point()
+
+rPlot2 = ggplot(data = residues, aes(asma2$drug, residues$e)) + 
+  labs(x = "Predicted", y = "Pearson Residues") +
+  geom_abline(slope = 0, intercept = 0, colour = "red") +
+  geom_boxplot(col = c("black", "black", "black"), 
+               fill = c("pink", "green", "blue"),  
+               outlier.color = "red",
+               outlier.shape = 8) +
+  geom_dotplot(binaxis = 'y', stackdir = 'center', dotsize = .2)
+
+ggQQ = function(LM) # argument: a linear model
+{
+  y = quantile(LM$resid[!is.na(LM$resid)], c(0.25, 0.75))
+  x = qnorm(c(0.25, 0.75))
+  slope = diff(y)/diff(x)
+  int = y[1L] - slope * x[1L]
+  p = ggplot(LM, aes(sample = e)) +
+    stat_qq(alpha = 0.5) +
+    geom_abline(slope = slope, intercept = int, color="blue")
+  
+  return(p)
+}
+
+rPlot3 = ggQQ(residues)
+
+rPlot4 = ggplot(data = residues, aes(x = residues$e)) +
+  geom_histogram(binwidth = .1)
+
+figure = ggarrange(rPlot1, rPlot2, rPlot3, rPlot4,
+                   labels = c("Dispersion Graph", "Residue Boxplot", "QQnorm", "Residue Histogram"),
+                   ncol = 2, nrow = 2)
+figure
+
+shapiro.test(e)
+```
+After confirming that the assumptions are being met I can finally finish analyzing the data presented and extract information from the data with the model:
+
+```{r analysis, echo = TRUE, warning = FALSE,}
+
+
+CLD(emmeans(model5, pairwise ~ drug | time))
+
+
+finalPlot1 = ggplot(data = asma2, aes(x = time, y = fev, colour = drug, group = drug)) +
+  geom_smooth(se = FALSE)+ labs(y = "FEV (litres)")
+
+summary = asma2 %>% group_by(time, drug) %>%
+  summarize(mn = mean(fev), sd = sd(fev), n = n() )
+summary$se = summary$sd / sqrt(summary$n)
+
+finalPlot2 = ggplot(summary, aes(x=time, y = mn, colour = drug)) +
+  geom_line(aes(colour = drug)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mn - se, ymax = mn + se), width = .2) + 
+  labs(y = "FEV (litres)")
+
+figure2 = ggarrange(finalPlot1, finalPlot2,
+                    labels = c("FEV vs Time", "FEV vs Time + error"))
+
+figure2
+```
+
+At hours 3 and 4 there are statistically significant differences. 
