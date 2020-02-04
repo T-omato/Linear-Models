@@ -1,0 +1,221 @@
+---
+title: "Nested Analysis & Aleatory effects"
+author: "Pablo Rodriguez"
+date: "1/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I will analyze data from a study where different parcels of land underwent pasturing from cows or not and later the amount of seeds were measured in these lands.
+
+In each parcel of land 10 random points were chosen and at each point a sample of 25$cm^2$ was taken and the amount of seeds were measured.
+
+The response variable will be "biomass" which will be the weight of the amount of seeds, a continuos variable with a normal probability distribution. The explanatory variables are the parcels of land a nominal variable, meaning that each parcel may modify the amount of seeds found for some reason and the treatment, a dicotomic variable: Pastured and Closed.  
+
+A total of 100 data points were measured. 10 samples were taken from each parcel
+
+```{r echo = TRUE}
+treatment = c(
+  "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed",
+  "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed",
+  "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed",
+  "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed",
+  "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed", "grazed",
+  "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed",
+  "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed",
+  "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed",
+  "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed",
+  "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed", "closed"
+)
+
+pasture = c(
+  "1", "1", "1", "1", "1", "1", "1", "1", "1", "1",
+  "2", "2", "2", "2", "2", "2", "2", "2", "2", "2",
+  "3", "3", "3", "3", "3", "3", "3", "3", "3", "3",
+  "4", "4", "4", "4", "4", "4", "4", "4", "4", "4",
+  "5", "5", "5", "5", "5", "5", "5", "5", "5", "5",
+  "6", "6", "6", "6", "6", "6", "6", "6", "6", "6",
+  "7", "7", "7", "7", "7", "7", "7", "7", "7", "7",
+  "8", "8", "8", "8", "8", "8", "8", "8", "8", "8",
+  "9", "9", "9", "9", "9", "9", "9", "9", "9", "9",
+  "10", "10", "10", "10", "10", "10", "10", "10", "10", "10"
+)
+
+biomass = c(
+  8.2, 8.8, 9.5, 12.7, 15.2, 13, 8.5, 6.7, 9.9, 8.5, 
+  4.9, 10.5, 7.5, 9, 6.4, 8.5, 4.9, 3.7, 6.6, 7.5,
+  10.1, 12.5, 6.9, 5.8, 6.4, 6.9, 9.5, 6.9, 8.7, 11.7,
+  16.9, 8.8, 6.3, 11.3, 9.3, 10.1, 11.6, 11, 9.9, 8.6,
+  12.8, 11.9, 14.7, 12.2, 12.3, 12.1, 12.2, 14.8, 12.6, 11.9,
+  8.6, 6.2, 5.6, 0.6, 7.5, 3.4, 7.7, 1.9, 8.7, 7.6,
+  3.7, 6.9, 6.2, 5.8, 4.2, 5.9, 6.2, 7, 5.9, 2.9,
+  6.8, 5.3, 5.9, 5.9, 8.3, 3.1, 7.2, 5.7, 4.6, 5.3,
+  8.7, 9.3, 7.9, 10.4, 6.2, 5.3, 6.3, 4.7, 8.4, 6.6,
+  8.6, 12.2, 9.3, 8.6, 8.1, 7.2, 10.3, 8, 7.7, 7.8
+)
+
+seeds = data.frame(treatment,pasture,biomass)
+```
+```{r echo = TRUE, include = FALSE, message = FALSE}
+library(ggplot2)
+library(psych)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(sjlabelled)
+library(sjmisc)
+library(Rmisc)
+```
+
+Firstly I will analyze the data ignoring each parcel of land. This is to demonstrate a *common error*:
+
+
+```{r pressure, echo=FALSE}
+firstPlot = ggplot(seeds, aes(treatment, biomass, fill = treatment))
+firstPlot + geom_boxplot() +
+  labs(y = "seed biomass (g/m^2)")
+```
+
+The means for each type of treatment are:
+
+```{r echo = TRUE}
+tapply(biomass, treatment, mean)
+```
+
+The proposed model and summary is:
+
+```{r echo = TRUE}
+model1 = lm(biomass ~ treatment, seeds)
+
+describeBy(seeds, group = treatment, mat = FALSE, type = 3, digits = 2)
+
+summary(model1)
+```
+
+#Underestimated Standard Errors:
+As can be seen in the second column of the *"Descriptive analysis by group"* n = 50. By saying n = 50 I am saying that there are 50 independent variables in my analysis and that the model contemplates these 50 independent values. This will cause my Standard Error to be **underestimated** which will make the p-value lower than should be making it easier for *Type I error* to be made. 
+
+This must be taken into account when analyzing this type of nested data: *The lack of independency must be stated in the model*. 
+
+###How to declare nested values:
+
+There are two ways: 1) is by simply informing the average of each parcel (which will lose a lot of valuable information) and the other which is what I would propose to anyone 2) taking the parcels from where the samples were taken into account as a aleatory variable.
+
+####Biomass average per parcel
+
+```{r echo = FALSE}
+secondPlot = ggplot(seeds, aes(treatment, 
+                               biomass, 
+                               fill = interaction(treatment, pasture),
+                               dodge = pasture))
+secondPlot + geom_boxplot() +
+  geom_jitter() +
+  labs(y = "seed biomass (g/m^2)")
+```
+
+From the graph we can already see that this model is more informative than the last model that did not take the parcels into account. 
+
+
+```{r echo = TRUE}
+(pasture.mean = aggregate(biomass ~ treatment + pasture, seeds, mean))
+describeBy(pasture.mean$biomass, pasture.mean$treatment)
+
+model2 = lm(biomass ~ treatment, pasture.mean)
+summary(model2)
+```
+
+From the description of the data according to the average of the biomass we see that the means for each of the treatments remains the same, logically, but there is a lot of information that is being lost. Thirdly and **most importantly** we have to look at the Standard Error estimates and we can see that these have grown compared to the last model. 
+
+#### Conditional Model: Adding parcels to the equation
+
+Model:
+
+$\gamma$$_{i}$ = $\beta$$_{0}$ + $\beta$$_{1}$ * Closed$_{i}$ + $\alpha$$_{j}$ + $\epsilon$$_{i}$
+
+Assumptions:
+The errors ($\epsilon$$_{i}$) and aleatory effects ($\alpha$$_{j}$) have a mean = 0 and their variance is $\sigma$$^2$
+
+$\epsilon$$_{i}$ ~ N(0,$\sigma$$^2$)  $\alpha$$_{j}$ ~ N(0,$\sigma$$^2$$_{parcels}$)
+
+Both ($\epsilon$$_{i}$) & ($\alpha$$_{j}$) are independent
+
+```{r echo = TRUE}
+model3 = lmer(biomass~ treatment + (1|pasture), seeds)
+
+errors = resid(model3)  ##Pearson Residues
+pre = predict(model3) ##Predicted residues
+alfai = ranef(model3)$pasture$'(Intercept)' ##extract the modes of the random effects
+par(mfrow = c(1,3))
+```
+
+I will check to see if the residues comply with the assumptions otherwise the model is useless:
+```{r echo = FALSE, message = FALSE}
+plot(pre, errors, xlab = "predicted", ylab = "Pearson residues",
+     main = "Dispersion graph")
+abline(0,0)
+qqnorm(errors, cex.main = .8)
+qqline(errors)
+qqnorm(alfai, ecx.main = .8)
+qqline(alfai)
+```
+
+```{r echo = TRUE}
+shapiro.test(errors)
+shapiro.test(alfai)
+```
+
+The dispersion graph shows no sign of patterns therefore homoscedasticity is being met and the shapiro tests for the residues and random effects also tell us not to reject normality for their distribution. 
+Now I calculate the fixed effects of the model:
+
+```{r echo = TRUE }
+X = model.matrix(model3)
+fix_pred = X %*% fixef(model3)
+```
+
+Since the assumption are met I will describe the data according to this model:
+
+```{r echo = TRUE}
+model3 = lmer(biomass~ treatment + (1|pasture), seeds)
+summary(model3)
+```
+
+In this summary we have the random and fixed effects. The random effects here will allow me to inform the amount of variance that can be explained due to the parcels. 
+
+In the fixed effects area, the p-values are < .05 which means that the treatments statistically differe between eachother. Meaning that the differences in biomass between parcels is due to more than just chance. 
+
+Now to calculate the *"Best Linear Unbiased Prediction"* or *BLUP*s which are the "estimation" of the random effects. In this case we can observe how each parcel would modify the total biomass due to the nature of itself.
+```{r echo = TRUE, message = FALSE}
+alfai = ranef(model3)$pasture$'(Intercept)'
+
+plot_model(model3, type = "re", show.values = TRUE, value.offset = .3)
+
+confint(model3, level = 0.95, method = c("profile"))
+```
+
+Finally a well presented summary of the analysis:
+
+```{r echo = TRUE}
+tab_model(model3, p.val = "kr")
+```
+```{r echo = FALSE}
+sumSum = summarySE(pasture.mean, measurevar = "biomass", groupvars = "treatment")
+thirdPlot = ggplot(sumSum, aes(x = treatment, y = biomass))
+thirdPlot + geom_bar(position = position_dodge(), stat = "identity", fill = "blue") +
+  labs(y = "seed biomass(g/m^2)") +
+  geom_errorbar(aes(ymin = biomass - se, ymax = biomass + se),
+                width = .2)
+```
+
+The important factor to take into account from this summary is that it already informs the variance explained by the random effects: ICC; ICC measures the correlation between data points of the same parcel; higher values indicate that measurements in a single parcel are very similar and therefore the variance is due to the parcels.
+
+Here ICC = 0.4 which means that 40% of the variance in seed biomass is provided by the variance between parcels assigned to a specific treatment. The other 60% is given due to the variance between samples from the same parcel.
+
+Finally our theoritical model: $\gamma$$_{i}$ = $\beta$$_{0}$ + $\beta$$_{1}$ * Closed$_{i}$ + $\alpha$$_{j}$ + $\epsilon$$_{i}$
+
+Now looks like:
+$\gamma$$_{i}$ = 6.64g/m$^2$ + 3.1 g/m$^2$ * Closed$_{i}$ + $\alpha$$_{j}$ 
+
+where closed$_{i}$ will take on the nominal values which correspond to the closed parcels. $\alpha$$_{j}$ will take on the value which corresponds to the closed$_{i}$ parcel.
