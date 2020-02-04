@@ -1,0 +1,261 @@
+---
+title: "Maximum Likelihood Estimations,Modelling Variance, & Comparisons"
+author: "Pablo Rodriguez"
+date: "1/18/2020"
+output: html_document
+---
+
+```{r}
+```
+In this work I will be estimating parameters using *Maximum Likelihood Estimation*, which will allow me to model the covariance matrix if the data suffers from heteroscedasticity. I will explore different models that use different techniques for modelling the variance and I will choose the best model based on AIC. In this analysis I will be using data from the University of Buenos Aires, department of ecology of the College of Exact and Natural Sciences where:
+
+Rats of the genus **Rattus** that live in urban areas are exposed to heavy metals. Furthermore, since their area of activity is small, it has been suggested that they may be used as enviromental heavy metal contamination markers. 143 rats were collected (**Rattus norvegicus**) from all around Buenos Aires District Capital. Their femurs were degraded in nitric acid and later taken to CEA and CNEA, where the level of lead was determined. Rats were captured in 4 different areas of the city, greenSpace, D_residential, Residential and Riachuelo. 
+
+I will begin by describing the data based on these different places:
+
+
+```{r echo = TRUE}
+places = c(
+  "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace",
+  "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", 
+  "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace",
+  "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", 
+  "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace", "greenSpace",
+  "greenSpace", "greenSpace", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential", "D_Residential",
+  "Residential", "Residential", "Residential", "Residential", "Residential", "Residential", "Residential", "Residential", 
+  "Residential", "Residential", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo", 
+  "Riachuelo", "Riachuelo", "Riachuelo", "Riachuelo"
+)
+
+Lead = c(
+  2.484907, 2.944439, 2.77, 2.397895, 2.890372, 2.397895, 2.079442, 2.890372, 2.944439, 2.639057, 2.639057, 1.945910,
+  3.178054, 3.713572, 2.397895, 2.890372, 3.663562, 2.397895, 3.091042, 2.302585, 1.386294, 1.945910, 2.944439, 1.386294,
+  1.945910149, 2.302585093, 1.386294361, 2.944438979, 3.218875825, 2.944438979, 3.218875825, 3.526360525, 2.708050201, 
+  2.302585093, 2.944438979, 3.218875825, 3.218875825, 3.871201011, 2.63905733, 4.060443011, 2.944438979, 5.497168225,
+  4.852030264, 2.302585093, 5.192956851, 4.060443011, 2.708050201, 2.302585093, 2.944438979, 2.944438979, 4.060443011,
+  2.944438979, 3.401197382, 4.060443011, 3.401197382, 3.218875825, 4.276666119, 3.218875825, 5.811140993, 3.258096538,
+  3.871201011, 2.772588722, 2.944438979, 2.944438979, 3.737669618, 3.912023005, 4.060443011, 5.187385806, 3.433987204,
+  2.944438979, 2.944438979, 3.401197382, 2.944438979, 2.944438979, 2.302585093, 2.944438979, 1.791759469, 2.63905733,
+  3.526360525, 2.708050201, 3.218875825, 3.713572067, 4.189654742, 2.944438979, 3.713572067, 1.386294361, 5.017279837,
+  4.700480366, 4.317488114, 3.526360525, 5.192956851, 3.258096538, 4.317488114, 4.852030264, 1.791759469, 5.411646052,
+  4.521788577, 3.63758616, 5.880532986, 1.386294361, 4.521788577, 2.63905733, 4.605170186, 2.397895273, 2.890371758,
+  2.397895273, 4.204692619, 5.241747015, 2.995732274, 2.63905733, 3.80666249, 4.219507705, 3.63758616, 4.127134385,
+  2.63905733, 7.199678346, 4.762173935, 6.182084907, 5.342334252, 6.115892125, 5.590986981, 5.476463552, 5.739792912,
+  4.700480366, 6.778784898, 4.663439094, 8.273081334, 4.605170186, 4.997212274, 6.263398263, 4.290459441, 4.700480366, 
+  6.335054251, 4.510859507, 4.890349128, 5.888877958, 7.961370202, 5.209486153, 4.663439094, 5.293304825, 5.231108617,
+  3.737669618, 4.060443011
+  )
+
+Pb = data.frame(places, Lead)
+attach(Pb)
+```
+```{r echo = TRUE}
+library(psych)
+
+describeBy(Pb$Lead,Pb$places)
+```
+
+In this initial analysis, if one were to look at the mean and compare them to their corresponding standard deviation (sd) a pattern arrises: The larger the mean, the larger the sd, which also means a larger variance. To further see this I will graph the data:
+
+```{r echo=TRUE, include = FALSE, message = FALSE}
+
+library(ggplot2)
+library(ggpubr)
+library(inlmisc)
+
+gBox = ggplot(Pb, aes(x = Pb$places, y = Pb$Lead)) + 
+  geom_boxplot() +
+  geom_dotplot(binaxis='y',stackdir='center',dotsize = .5, fill="blue") +
+  ylab("Lead in bones (PPM)") + xlab("")
+
+gDensity = ggplot(Pb, aes(Lead)) +
+  geom_density(aes(fill = factor(places), alpha =0.8)) +
+  xlab("Lead in bones (PPM)")
+
+mean = c(2.65, 3.48, 3.31, 4.63)
+variance = c(0.35, 0.83, 0.96, 1.99)
+area = c("greenSpace", "D_residential", "Residential", "Riachuelo")
+table = cbind.data.frame(mean, variance, area)
+
+meanVSvar = ggplot(data = table, aes(x = mean, y =variance)) +  
+  geom_point(data = table, aes(x = mean, y = variance, color = area), size=3) +
+  geom_smooth(method=lm, se = FALSE)
+```
+
+```{r echo=FALSE}
+figure1 = ggarrange(gBox, gDensity, meanVSvar, ncol = 2, nrow = 2)
+figure1
+```
+
+The first two graphs on the top, left: shows a **boxplot** and how the overall Lead PPM is distributed according to each place the rat was taken from. Since this still might not be as clear, a **density plot** may be able to make things clearer, right: This density plot shows the probability distribution of the data and as can be seen, variance differs greatly according to the place the rats were taken from. The last graph, bottom: Shows how the variance "grows" as the mean "grows". This graph allows the relationship between mean and variance to be visually clearer. 
+
+This **analysis** is important because it gives us an understanding of the data. So far I can observe that the data will not be able to be **modelled** into a **simple linear regression** because the assumption of homogeneity of variance is not being met. 
+
+This can be easily observed by plotting the model: 
+```{r echo = TRUE, include = FALSE, message = FALSE}
+model1 = lm(Lead ~ places, data = Pb)
+par(mfrow = c(2,2))
+plot(model1)
+
+library(car)
+
+leveneTest(Lead ~ places, data = Pb)
+```
+
+Since p<0.5 for Levene's test, then Homogeneity of Variance is rejected and the data cannot be worked with. Also, the residues vs fitted values clearly shows a pattern, something that cannot happend for *General Linear Model* modelling. 
+
+Although, if the parameters for the model were to be estimated using Maximum Likelihood then the variance could be modelled.
+
+###**It is important to note that the lack of homogeneity could have been avoided if the samples taken in each place had been the same in total**###
+
+Firstly I will estimate the same model again but by using ML
+```{r include=FALSE, message=FALSE, echo = TRUE}
+library(nlme)
+
+model2 = gls(Lead ~ places, data = Pb)
+r2 = residuals(model2,type = "p")
+pred2 = fitted(model2)
+
+residuals2 = ggplot(data = Pb, aes(x = pred2, y = r2)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 0) +
+  xlab("Predicted") +
+  ylab("Residues")
+
+m2Box = ggplot(data = Pb, aes(x = Pb$places, y = r2)) +
+  geom_boxplot() +
+  xlab("Places") +
+  ylab("Residues")
+
+m2qq = qqnorm(model2, abline = c(0,1)) #QQ plot
+
+figure2 = ggarrange(residuals2, m2Box, m2qq, ncol = 3, nrow = 1)
+annotate_figure(figure2,
+                top = text_grob("Exploratory analysis of residues for model 2", 
+                                color = "pink", 
+                                face = "bold", 
+                                size = 14))
+```
+
+As can be seen the lack of homogeinity persists, therefore I need to **model** the variance. I will Model the variance in four different ways:
+
+The first way will be by estimating a variance for each groupo
+```{r echo = TRUE}
+model3 = gls(Lead ~ places, weights = varIdent(form =~1|places), data = Pb)
+```
+```{r echo = FALSE}
+r3 = residuals(model3, type = "p") 
+pred3 = fitted(model3)
+
+residuals3 = ggplot(data = Pb, aes(x = pred3, y = r3)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 0) +
+  xlab("Predicted") +
+  ylab("Residues")
+  
+m3Box = ggplot(data = Pb, aes(x = Pb$places, y = r3)) +
+  geom_boxplot() +
+  xlab("Places") +
+  ylab("Residues")
+
+m3qq = qqnorm(model3, abline = c(0,1))
+
+figure3 = ggarrange(residuals3, m3Box, m3qq, ncol = 3, nrow = 1)
+annotate_figure(figure3,
+                top = text_grob("Exploratory analysis of residues for model 3", 
+                                color = "pink", 
+                                face = "bold", 
+                                size = 14))
+```
+
+Secondly I will model the variance to the power of one of the co-variables
+
+```{r echo = TRUE}
+model4 = gls(Lead ~ places, weights = varPower(), data = Pb)
+```
+```{r echo = FALSE}
+r4 = residuals(model4 , type = "p")
+pred4 = fitted(model4)
+
+residuals4 = ggplot(data = Pb, aes(x = pred4, y = r4)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 0) +
+  xlab("Predicted") +
+  ylab("Residues")
+
+m4Box = ggplot(data = Pb, aes(x = Pb$places, y = r4)) +
+  geom_boxplot() +
+  xlab("Places") +
+  ylab("Residues")
+  
+m4qq = qqnorm(model4, abline = c(0,1))
+
+figure4 = ggarrange(residuals4, m4Box, m4qq, ncol = 3, nrow = 1)
+annotate_figure(figure4,
+                top = text_grob("Exploratory analysis of residues for model 4", 
+                                color = "pink", 
+                                face = "bold", 
+                                size = 14))
+```
+
+Lastly I will model the variance as an exponential function of one of the co-variables:
+```{r echo = TRUE}
+model5 = gls(Lead ~ places, weights = varExp(), data = Pb)
+```
+```{r echo = FALSE}
+r5 = residuals(model5, type = "p") #guardamos los residuos de Pearson = estandarizados
+pred5 = fitted(model5)
+
+residuals5 = ggplot(data = Pb, aes(x = pred5, y = r5)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 0) +
+  xlab("Predicted") +
+  ylab("Residues")
+
+m5Box = ggplot(data = Pb, aes(x = Pb$places, y = r5)) +
+  geom_boxplot() +
+  xlab("Places") +
+  ylab("Residues")
+
+m5qq = qqnorm(model5, abline = c(0,1)) 
+
+figure5 = ggarrange(residuals5, m5Box, m5qq, ncol = 3, nrow = 1)
+annotate_figure(figure5,
+                top = text_grob("Exploratory analysis of residues for model 5", 
+                                color = "pink", 
+                                face = "bold", 
+                                size = 14))
+```
+
+Finally I will compare the models according to their function of ML and the total number of parameters that needed to be estimated for the model. For this I will be using *Akaike's* comparison (AIC)
+```{r echo = TRUE}
+AIC(model2, model3, model4, model5)
+```
+
+Since AIC for model 4 is lowest compared to all other models I will continue to explore the data according to the information that model 4 provides, since after modelling the variance and it being corrected, model 4 is the simplest model of all: Hence the lower AIC.
+
+Finally, after finding the "best" model to describe my data, (I say "best" because just because something doesn't conform the this type of analysis doesn't mean that it can't be analyzed in other ways. Say for example we could have modelled the data according to a Poisson distribution or binomial. We wouldn't have needed to desicrate the model by adding parameters to make the variance work for this type of modelling, thus making it a simpler model) I will perform a simple comparison to see if there are any statistical differences between the lead found in rats in these four locations:
+```{r echo = TRUE}
+
+library(emmeans)
+
+Comparison = emmeans(model4, pairwise ~ places)   
+Comparison
+
+plot(Comparison, comparisons = TRUE)
+confint(Comparison)
+```
+
+From the graph with red arrows(It is a way of showing overlapping confidence intervals which allows one to discern between statistically significant and non significant mean comparisons) we can observe that the amount of lead found in rats in Riachuelo is statistically higher than that found in greenSpance D_Residential and Residential areas. There is no difference however in the amount of lead in rats of Residential areas and those of D_residential and greenSpaces, while rats that were taken from greenSpaces show a statistically lower amount of lead compared to rats taken from D_residential areas. 
+
+The last table shown is the confidence intervals for the contrasts between means with a confidence level of 95%. 
