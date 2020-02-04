@@ -1,0 +1,267 @@
+---
+title: "More than one Explanatory Variable"
+author: "Pablo Rodriguez"
+date: "1/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+```
+
+#Analyzing codependency between Explanatory Variables
+
+Sometimes certain variables are measured or taken into account for an analysis and might be more harmful than helpful. One explanation may be because of codependency between variables. When a variables is included in an analysis and is codependent of another variable, usually a parameter is estimated, a degree of freedom is lost and ultimately the statistical model losses potency.
+
+Here I will analyze the height, age, weight and Maximum Voluntary Ventilation or vvm, measured from 50 patients. 
+
+
+```{r echo = FALSE}
+age = c(
+  41, 46, 45, 75, 29, 65, 49, 67, 53, 56,
+  64, 44, 39, 53, 26, 44, 78, 72, 25, 64,
+  34, 76, 70, 51, 59, 58, 62, 31, 37, 67,
+  48, 46, 54, 44, 61, 53, 46, 55, 68, 79,
+  59, 61, 25, 61, 78, 65, 42, 43, 35, 69
+)
+
+height = c(
+  168, 151, 186, 154, 157, 186, 166, 181, 189, 174,
+  159, 173, 183, 159, 168, 179, 154, 179, 160, 179,
+  159, 190, 185, 164, 164, 187, 162, 152, 172, 183,
+  156, 151, 153, 188, 185, 188, 174, 170, 153, 187,
+  158, 179, 151, 179, 182, 181, 183, 177, 179, 181
+)
+
+weight = c(
+  75, 63, 96, 69, 64, 98, 78, 78, 95, 83,
+  66, 80, 86, 67, 71, 91, 68, 87, 70, 85,
+  62, 97, 101, 71, 66, 104, 74, 60, 87, 83,
+  72, 52, 59, 101, 84, 104, 88, 85, 63, 108,
+  68, 80, 59, 82, 89, 83, 97, 89, 86, 93
+)
+
+vvm = c(
+  146, 107, 165, 80, 142, 150, 150, 150, 188, 126,
+  129, 157, 195, 115, 164, 181, 91, 133, 156, 150,
+  139, 168, 180, 155, 113, 168, 111, 122, 175, 163,
+  122, 98, 109, 202, 160, 163, 170, 135, 91, 145,
+  106, 167, 135, 142, 138, 164, 171, 158, 181, 157
+)
+
+lungCapacity = data.frame(age, height, weight, vvm)
+```
+```{r echo=TRUE, warning = FALSE, message = FALSE}
+
+#Libraries used
+attach(lungCapacity)
+library(car)
+library(ggplot2)
+library(GGally)
+library(ggpubr)
+library(dplyr)
+library(qwraps2)
+library(summarytools)
+library(FactoMineR)
+library(factoextra)
+library(plotly)
+```
+
+```{r echo = TRUE, warning = FALSE}
+#Functions used
+
+my_custom_smooth = function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_point(color = I("gold2")) + 
+    geom_smooth(method = "lm", color = I("darkmagenta"), ...)
+}
+
+corColors = RColorBrewer::brewer.pal(n = 7, name = "RdYlGn")[2:6]
+
+my_custom_cor_color = function(data, mapping, color = I("black"), sizeRange = c(1, 5), ...) {
+  # get the x and y data to use the other code
+  x <- GGally::eval_data_col(data, mapping$x) 
+  y <- GGally::eval_data_col(data, mapping$y) 
+  
+  ct <- cor.test(x,y)
+  
+  r <- unname(ct$estimate)
+  rt <- format(r, digits=2)[1]
+  tt <- as.character(rt)
+  
+  # plot the cor value
+  p <- ggally_text(
+    label = tt, 
+    mapping = aes(),
+    xP = 0.5, yP = 0.5, 
+    size = 6,
+    color=color,
+    ...
+  ) +
+    
+    theme(
+      panel.background = element_rect(fill="white",
+                                      color = "black", 
+                                      linetype = "dashed"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank()
+    ) 
+  
+  corColors <- RColorBrewer::brewer.pal(n = 7, name = "RdYlGn")[2:6]
+  
+  if (r <= -0.6) {
+    corCol <- corColors[1]
+  } else if (r <= -0.4) {
+    corCol <- corColors[2]
+  } else if (r < 0.5) {
+    corCol <- corColors[3]
+  } else if (r < 0.7) {
+    corCol <- corColors[4]
+  } else {
+    corCol <- corColors[5]
+  }
+  p <- p + theme(
+    panel.background = element_rect(fill= corCol)
+  )
+  
+  p
+}
+
+DispGraph = function(df,x,y) {
+  x = x
+  y = y
+  p = ggplot(df, aes(x = x, y = y)) +
+    geom_point() +
+    geom_abline(slope = 0, intercept = 0) +
+    labs(x = "Predicted", y = "Standard Error")
+  
+  return(p)
+}
+
+ValidGraph = function(df,x,y) {
+  x = x
+  y = y
+  p = ggplot(df, aes(x = x, y = y)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0) +
+    labs(x = "Ajusted", y = "vvm")
+}
+
+ggQQ = function(LM) # argument: a linear model
+{
+  y = quantile(LM$resid[!is.na(LM$resid)], c(0.25, 0.75))
+  x = qnorm(c(0.25, 0.75))
+  slope = diff(y)/diff(x)
+  int = y[1L] - slope * x[1L]
+  p = ggplot(LM, aes(sample = resid(LM))) +
+    stat_qq(alpha = 0.5) +
+    geom_abline(slope = slope, intercept = int, color="blue")
+  
+  return(p)
+}
+```
+
+Correlation study of variables:
+```{r echo = TRUE}
+pm <- ggpairs(
+  lungCapacity,
+  upper = list(continuous = my_custom_cor_color),
+  diag = list(continuous = "density"),
+  lower = list(
+    continuous = my_custom_smooth, 
+    combo = "dot"
+  ), 
+  axisLabels = "none")
+##Credit of formula due to Barret Schloerke
+pm
+
+PCA(lungCapacity[,1:3], scale.unit = TRUE, ncp = 3, graph = TRUE)
+res.pca = PCA(lungCapacity[,1:3], graph = FALSE)
+
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 50))
+
+           
+```
+
+The code here informs via colors if variables are codependent positively (green) or negatively (red). If covariables are not codependent then the colors will be closer to yellow. The closer a value is to "1" the higher the chance of the variables being codependent.
+
+We can see that on the top right side we have the correlation values and on the bottom left side we have the linear correlation of the data for each variable.
+
+When analyzing by Principal Component Analysis we can see in the PCA Graph of Variables that the components Weight and Height contribute practically the same to the variance of the data. 
+
+Therefore it is wise to exclude one of these columns of data since it doesn't explain anything new about the data. 
+To continue this analysis I will first define a model for the data:
+```{r echo = TRUE}
+
+m1 = lm(vvm ~ age + height + weight, data = lungCapacity)
+```
+```{r include = TRUE, message = FALSE, echo = FALSE}
+summary(m1)
+
+
+```
+```{r echo = TRUE}
+vif(m1)
+```
+
+From the summary of the model we can see that out of all the variables, weight is considered to not be statistically significant. Added to the fact that it depends on the variable "height" I analyzed how this variables *inflates the variance* measuring the *Variance Inflation Factor* or **VIF**. A VIF value > or = to 5 tends to indicate that there is a strong since of correlation between variables and therefore adding it to the model will be more harmful than helpful. 
+
+I will run different models containing either of these variables:
+
+```{r echo = TRUE}
+m2 = lm(vvm ~ age + weight, data = lungCapacity)
+m3 = lm(vvm ~ age + height, data = lungCapacity)
+m4 = lm(vvm ~ age, data = lungCapacity)
+m5 = lm(vvm ~ height, data = lungCapacity)
+m6 = lm(vvm ~ age*height, data = lungCapacity)
+```
+
+And will compare their AIC, $R^2$ and adjusted $R^2$.
+
+```{r echo = TRUE}
+AIC = AIC(m1, m2, m3, m4, m5, m6)
+R2 = c(summary(m1)$r.squared, summary(m2)$r.squared, summary(m3)$r.squared, summary(m4)$r.squared, summary(m5)$r.squared, summary(m6)$r.squared)
+R2aj = c(summary(m1)$adj.r.squared, summary(m2)$adj.r.squared, summary(m3)$adj.r.squared, summary(m4)$adj.r.squared, summary(m5)$adj.r.squared, summary(m6)$r.squared)
+model = c(1, 2, 3, 4, 5, 6)
+compR = cbind(model,  AIC, round(R2,4), round(R2aj,3))
+colnames(compR) = c("model", "df", "AIC", "R2", "R2 ajust")
+compR
+```
+
+m6 contemplates interaction between the variables age and height, which biologically speaking is true. The older you get the taller you're supposed to be. If we check the summary of this model (summary not shown, it is redundant), we could observe that the interaction is not statistically significant. Since this study was observational and not experimental this interaction need not be included in the model. Therefore comparing AIC model 3 was chosen to continue analyzing this data.
+
+After choosing significant explanatory variables and proposing a model to best describe the data, I will now make sure that the assumptions are being met for this simple Linear Regression:
+```{r echo = TRUE}
+r3 = resid(m3)
+fr3 = rstandard(m3)
+pre3 = predict(m3)
+res = data.frame(r3, pre3, fr3)
+
+DPm3 = DispGraph(res, pre3, fr3)
+VGm3 = ValidGraph(res, fr3, vvm)
+qqm3 = ggQQ(m3)
+
+ggarrange(DPm3, VGm3, qqm3, 
+          labels = c("A", "B", "C"))
+```
+```{r echo = TRUE}
+Shap.Testm3 = shapiro.test(r3)
+Lev.Testm3 = leveneTest(age+height, vvm)
+tests = cbind("p-value", round(Shap.Testm3$p.value,3), round(Lev.Testm3$`Pr(>F)`,3))
+tests
+colnames(tests) = c("", "Shapiro Test", "Levene Test")
+tests[1,]
+```
+
+From the qqplot I can observe that although the residues don't behave perfectly as with a normally distributed population of residues, it is far from being bad. The dispersion graph of Standard Residues vs Fitted Values that there are no visible patterns and data falls inside twice the dispersion (2 and -2) for which we can also conclude that the assumptions of homoscedasticity and homogeneity are being met and the model is correct. 
+To corroborate this, I conduct Shapiro's Normality and Levene's Homoscedasticity tests, and both suggest that I not reject the null hypothesis. 
+
+```{r echo = TRUE}
+x = as.matrix(age)
+y = as.matrix(height)
+z  = as.matrix(vvm)
+D3 = as.data.frame(x,y,z)
+
+plot_ly(lungCapacity, x = ~age, y = ~height, z = ~vvm)
+
+```
