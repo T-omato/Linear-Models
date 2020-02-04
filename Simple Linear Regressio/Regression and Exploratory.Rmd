@@ -1,0 +1,276 @@
+---
+title: "Simple Regression & Exploratory Analysis"
+author: "Pablo Rodriguez"
+date: "1/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Restoring cadmium contaminated soils using *Eremochloa ophiuroideas*
+
+It was of interest to study the detoxifying capacity of *Eremochloa ophiuroides* in Cd contaminated soils.
+
+### Experimental Design:
+
+20 pots of soil with this grass were assigned 5 different dosis of Cd (60, 120, 180, 240 and 300 mg Cd per kg)
+
+Each dose of Cd was assigned 4 pots.
+
+After 36 days in the greenhouse accumalated Cd was measured in the plant as: Cd per kg of dried plant weight.
+
+Model Description:
+
+A linear relationship is suspected. The Response Variable (RV) is accumalated Cd. The Explanatory Variable (EV) which is Cd dosage is the deterministic part of the analysis. All statistic models have an error (E) asociated with them and is called the stocastic part of the analysis and it contemplates the: 1) inherent aleatory process 2) The effect of other EV not included in the model and 3) measuring error. This error is assigned a probability distribution and in this case it is assigned a normal distribution since the RV is a continuos variable.
+
+### Firstly
+I will view the data and observe the mean, median and minimums and maximums. 
+```{r}
+Dosage = c(
+  60, 60, 60, 60,
+  120, 120, 120, 120,
+  180, 180, 180, 180,
+  240, 240, 240, 240,
+  300, 300, 300, 300)
+
+CdStalk = c(
+  23.2, 16.2, 52.7, 29.1,
+  52.5, 45.7, 52.9, 84.9,
+  123.5, 106.9, 123.9, 145.7,
+  166.8, 165.9, 184.3, 157,
+  208.4, 189.9, 217.7, 193.2
+)
+
+CdRoot = c(
+  104.6, 156, 114.9, 176.9,
+  258.4, 340.9, 205.3, 366.8,
+  457.5, 540.8, 472.5, 294.3, 
+  612.7, 789.6, 622.9, 562.6, 
+  988.9, 1067.1, 959.6, 962.9
+)
+Cd = data.frame(Dosage, CdStalk, CdRoot)
+Cd
+summary(Cd)
+```
+```{r echo = TRUE, warning = FALSE, message = FALSE}
+#Libraries used
+
+library(ggplot2)
+library(car)
+library(ggpubr)
+```
+```{r functions, echo = TRUE}
+DispGraph = function(df,x,y) {
+  x = x
+  y = y
+  p = ggplot(df, aes(x = x, y = y)) +
+    geom_point() +
+    geom_abline(slope = 0, intercept = 0) +
+    labs(x = "Predicted", y = "Standard Error")
+  
+  return(p)
+}
+
+ValidGraph = function(df,x,y) {
+  x = x
+  y = y
+  p = ggplot(df, aes(x = x, y = y)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0) +
+    labs(x = "Ajusted", y = "Cd")
+}
+
+ResponseGraph = function(df, x, y) {
+  x = x
+  y = y
+  p = ggplot(df, aes(x = x, y = y))+
+    geom_boxplot(aes(color = Dosage)) +
+    labs(x = "Dosage", y = "Pearson Residues") +
+    theme(legend.position = "none")
+}
+
+ggQQ = function(LM) # argument: a linear model
+{
+  y = quantile(LM$resid[!is.na(LM$resid)], c(0.25, 0.75))
+  x = qnorm(c(0.25, 0.75))
+  slope = diff(y)/diff(x)
+  int = y[1L] - slope * x[1L]
+  p = ggplot(LM, aes(sample = resid(LM))) +
+    stat_qq(alpha = 0.5) +
+    geom_abline(slope = slope, intercept = int, color="blue")
+  
+  return(p)
+}
+```
+
+### Visualizing the data
+
+In order to observe any relationships between my Response Variable (RV) (Cd in grass stalk) and my Explanatory Variabel (EV) I will graph the data and I
+will be using ggplot:
+
+```{r echo = TRUE, warning = FALSE, messgae = FALSE}
+Cd$Dosage = as.factor(Cd$Dosage)
+CdStalkDens = ggplot() +
+  geom_density(data = Cd, aes(x = CdStalk, fill = Cd$Dosage)) +
+  labs(x = "Cd (mg/ g Dry Weight", y = "Density", fill = "Dosage", title = "Cd in stalk")
+
+CdRootDens = ggplot() +
+  geom_density(data = Cd, aes(x = CdRoot, fill = Cd$Dosage)) +
+  labs(x = "Cd (mg/ g Dry Weight)", y = "Density", fill = "Dosage", title = "cd in roots")
+
+gCd = ggplot() +
+  geom_point(data = Cd, aes(x = Cd$Dosage, y = Cd$CdStalk, colour = Cd$Dosage)) + 
+  labs(x = "Cd Dosage (mg/soil Kg)" , y = "Cd (mg/ g Dry Weight)", title = "Absorbtion of Cd in stalk and roots of E.ophiuroides",
+       colour = "Stalk", shape = "Root") +
+  geom_point(data = Cd, aes(x = Dosage, y = Cd$CdRoot, shape = Cd$Dosage)) +
+  theme(legend.position = "bottom")
+
+ggarrange(CdStalkDens, CdRootDens, gCd, 
+          labels = c("A", "B", "C"))
+
+```
+
+When analyzing the Response variable density a double peak can be observed per dosage treatment. This can be 
+I can easily observe a linear relationship. For which I will propose a mathematical model that will allow me to predict:
+
+Y$_{i}$ = $\hat{\beta}$$_{0}$ + $\hat{\beta}$$_{1}$*$X_{i}$ + $\varepsilon$$_{i}$
+
+Where Y is the RV
+
+$\hat{\beta}$$_{0}$ is the intercept of the model
+
+$\hat{\beta}$$_{1}$ is the slope
+
+$X_{n}$ is the EV
+
+and $\varepsilon$$_{i}$ is the error associated with the model. 
+
+The mathematical model is a simple Linear Regression and this can be stated in R as follows:
+
+```{r echo = TRUE}
+model1 = lm(Cd$CdStalk ~ Cd$Dosage, data = Cd)
+
+model2 = lm(Cd$CdRoot ~ Dosage, data = Cd)
+
+```
+
+The values of the estimated coefficients are meaningles if the assumptions of the model are not corroborated
+
+### Assumptions:
+
+#### X is measured without error, Values are determined by the person.
+
+#### Independent Observations, meaning the value of one observation is not influenced by another observation. In other words there shouldn't be correlation between values.
+
+In order to check the independence of the observations it is necessary to estimate the error of the model:
+
+```{r echo = TRUE}
+
+errorm1 = resid(model1) ##residues
+errorm2 = resid(model2)
+standard_errorm1 = rstandard(model1) ##standard residues
+standard_errorm2 = rstandard((model2))
+predictedm1  = predict(model1) #predicted residues
+predictedm2 = predict(model2)
+
+res = cbind(Cd$Dosage, Cd$CdStalk, Cd$CdRoot, errorm1, errorm2, round(standard_errorm1,2), round(standard_errorm2, 2), predictedm1, predictedm2)
+colnames(res) = c("Dosage", "CdStalk", "CdRoots", "Error_m1", "Error_m2", "Stan_Error_m1", "Stan_Error_m2", "Predicted_m1", "Predicted_m2")
+res = as.data.frame(res)
+```
+
+```{r echo = TRUE}
+##Predicted versus Standard Error
+DGm1 = DispGraph(Cd, predictedm1, standard_errorm1)
+DGm2 = DispGraph(Cd, predictedm2, standard_errorm2)
+
+#Response Graph
+RGm1 = ResponseGraph(Cd, Dosage, errorm1)
+RGm2 = ResponseGraph(Cd, Dosage, errorm2)
+
+#Validation Graph
+VGm1 = ValidGraph(Cd, standard_errorm1, CdStalk)
+VGm2 = ValidGraph(Cd, standard_errorm2, CdRoot)
+
+#QQplot
+QQm1 = ggQQ(model1)
+QQm2 = ggQQ(model2)
+
+ggarrange(DGm1, RGm1, VGm1, QQm1, DGm2, RGm2, VGm2, QQm2,
+          ncol = 4, nrow = 2, labels = c("model1", "", "", "", "model2"))
+```
+
+In statistics Homoscedasticity is the assumption that the error of the data is distributed normally. I will conduct Shapiro's Test to test this. To test the Homogeinity of Variance I will conduct a Levene's Test. Homogeneity of Variance is an assumption that **cannot** not be met, unlike Homoscedasticity that cannot be met but still inform correct statistical values. 
+```{r echo = FALSE}
+
+CdTotal = Cd$CdStalk + CdRoot
+```
+```{r echo = TRUE}
+Shap.Testm1 = shapiro.test(errorm1)
+Shap.Testm2 = shapiro.test(errorm2)
+
+Homo.Testm1 = leveneTest(Cd$CdStalk,Cd$Dosage)
+Homo.Testm2 = leveneTest(Cd$CdRoot, Cd$Dosage)
+
+tests = cbind("p-value", round(Shap.Testm1$p.value,3), round(Homo.Testm1$`Pr(>F)`,3), round(Shap.Testm2$p.value,3), round(Homo.Testm2$`Pr(>F)`,3))
+colnames(tests) = c("", "Shapiro m1", "Levene m1", "Shapiro m2", "Levene m2")
+tests[1,]
+```
+
+For model 1 I can reject the Normality hypothesis since Shapiro m1 p-val < 0.5. But this assumption can be violated if Homoscedasticity is met: Levene's Test suggests there is no need to reject the null hypothesis, therefore homoscedasticity "is met". Luckily for model 2 both assumptions are met. 
+
+I can continue to work with both models. I will now graph the linear model:
+
+```{r echo = TRUE}
+
+place = c(
+   rep("stalk", 60), rep("roots", 60)
+)
+CdPlant = c(  23.2, 16.2, 52.7, 29.1,
+  52.5, 45.7, 52.9, 84.9,
+  123.5, 106.9, 123.9, 145.7,
+  166.8, 165.9, 184.3, 157,
+  208.4, 189.9, 217.7, 193.2,
+  104.6, 156, 114.9, 176.9,
+  258.4, 340.9, 205.3, 366.8,
+  457.5, 540.8, 472.5, 294.3, 
+  612.7, 789.6, 622.9, 562.6, 
+  988.9, 1067.1, 959.6, 962.9
+)
+  
+Cd = data.frame(Dosage, CdPlant, place)
+Cd$Dosage = as.factor(Cd$Dosage)
+Cd$place = as.factor(Cd$place)
+gCd = ggplot(data = Cd, aes(x = Cd$Dosage, y = CdPlant, group = place, colour = place)) +
+  geom_point(aes(colour = place)) +
+  geom_smooth(method = "lm", se = FALSE)+
+  labs(x = "Cd Dosage (mg/soil Kg)" , y = "Cd (mg/ g Dry Weight)", title = "Absorbtion of Cd in stalk and roots of E.ophiuroides",
+       colour = "Dosage", group = "Place") +
+  theme(legend.position = "bottom")
+
+gCd
+
+#Determination coefficient
+R2m1 = summary(model1)$r.squared
+R2m2 = summary(model2)$r.squared
+slope = summary(model1)$intercept
+```
+
+0.947, meaning that almost 95% of the variance of the model is explained by this explanatory variable
+
+```{r}
+sumModel1 = summary(model1)$coefficients
+sumModel1
+sumModel2 = summary(model2)$coefficients
+seperate = "Model2"
+sumModels = rbind(sumModel1, seperate, sumModel2)
+
+sumModels
+```
+
+### Finally, as informed by the summary function in R we can conclude the following from the data and the experiment performed:
+
+#### Conclusiones
+
+When this grass is not added to the pots, after 36 days of applying this method, the soil in the pots will diminish 19.03 mg per soil kg. Whereas if *E.ophiuroideas* is planted in the pots, after 36 days in the greenhouse, the amount of Cd removed from the soil 0.76mg per soil kg* Unit of dry plant weight. So, for example, if we extract 10g of dry grass from a pot with cadmium after 36 days in the greenhouse, we will expect to measure 7.6mg of cadmium in the plant dry mass. 
